@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 Su Pompası Kontrolü</title>
+    <title>ESP32 Dual LED Kontrol</title>
     <style>
         * {
             margin: 0;
@@ -12,14 +12,14 @@
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 800px;
             margin: 0 auto;
         }
 
@@ -32,22 +32,23 @@
         .header h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
         }
 
         .status-bar {
-            background: rgba(255,255,255,0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 15px;
+            display: flex;
+            justify-content: space-around;
             margin-bottom: 20px;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
             color: white;
         }
 
@@ -56,128 +57,13 @@
         }
 
         .status-value {
-            font-size: 1.8em;
+            font-size: 1.2em;
             font-weight: bold;
-            margin-bottom: 5px;
         }
 
         .status-label {
             font-size: 0.9em;
             opacity: 0.8;
-        }
-
-        .cards-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .card {
-            background: rgba(255,255,255,0.95);
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        .card h3 {
-            color: #333;
-            margin-bottom: 20px;
-            font-size: 1.3em;
-            text-align: center;
-        }
-
-        .pump-controls {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-
-        .btn {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .btn-success {
-            background: linear-gradient(45deg, #4CAF50, #45a049);
-            color: white;
-        }
-
-        .btn-danger {
-            background: linear-gradient(45deg, #f44336, #da190b);
-            color: white;
-        }
-
-        .btn-warning {
-            background: linear-gradient(45deg, #ff9800, #e68900);
-            color: white;
-        }
-
-        .btn-info {
-            background: linear-gradient(45deg, #2196F3, #0b7dda);
-            color: white;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .moisture-display {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .moisture-bar {
-            width: 100%;
-            height: 30px;
-            background: #e0e0e0;
-            border-radius: 15px;
-            overflow: hidden;
-            margin: 10px 0;
-            position: relative;
-        }
-
-        .moisture-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #ff4444, #ffaa00, #4CAF50);
-            border-radius: 15px;
-            transition: width 0.5s ease;
-        }
-
-        .moisture-text {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-weight: bold;
-            color: #333;
-            text-shadow: 1px 1px 2px rgba(255,255,255,0.8);
-        }
-
-        .history-chart {
-            height: 200px;
-            background: #f5f5f5;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #666;
-            margin-top: 15px;
         }
 
         .connection-status {
@@ -188,14 +74,107 @@
             margin-right: 8px;
         }
 
-        .connected {
-            background: #4CAF50;
-            box-shadow: 0 0 8px #4CAF50;
+        .connected { background-color: #4CAF50; }
+        .disconnected { background-color: #f44336; }
+
+        .led-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
         }
 
-        .disconnected {
+        .led-box {
+            flex: 1;
+            text-align: center;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            border: 3px solid #ddd;
+            transition: all 0.3s ease;
+        }
+
+        .led-box.active {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+            box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+        }
+
+        .led-icon {
+            font-size: 4em;
+            margin-bottom: 15px;
+            color: #ccc;
+            transition: all 0.3s ease;
+        }
+
+        .led-box.active .led-icon {
+            color: #4CAF50;
+            text-shadow: 0 0 20px #4CAF50;
+        }
+
+        .led-label {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .led-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 80px;
+        }
+
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-danger {
             background: #f44336;
-            box-shadow: 0 0 8px #f44336;
+            color: white;
+        }
+
+        .btn-warning {
+            background: #ff9800;
+            color: white;
+        }
+
+        .btn-info {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .control-panel {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .debug-info {
+            background: rgba(255,255,0,0.1);
+            border: 2px solid #ffeb3b;
+            border-radius: 10px;
+            padding: 15px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #333;
         }
 
         .log-container {
@@ -203,37 +182,25 @@
             color: #ecf0f1;
             border-radius: 8px;
             padding: 15px;
-            font-family: 'Courier New', monospace;
+            font-family: monospace;
             font-size: 12px;
             max-height: 200px;
             overflow-y: auto;
         }
 
-        .footer {
-            text-align: center;
-            color: rgba(255,255,255,0.8);
-            margin-top: 30px;
-            font-size: 0.9em;
-        }
-
-        .refresh-btn {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
-
         @media (max-width: 768px) {
-            .cards-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .pump-controls {
+            .led-container {
                 flex-direction: column;
+                gap: 15px;
             }
             
-            .header h1 {
-                font-size: 2em;
+            .status-bar {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .control-panel {
+                flex-direction: column;
             }
         }
     </style>
@@ -241,164 +208,138 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🌱 Akıllı Sulama Sistemi</h1>
-            <p>ESP32 + Raspberry Pi ile Su Pompası Kontrolü</p>
+            <h1>💡 ESP32 Dual LED Kontrol</h1>
+            <p>2 LED'i Web Üzerinden Kontrol Edin</p>
         </div>
 
+        <!-- Durum Çubuğu -->
         <div class="status-bar">
-            <div class="status-grid">
-                <div class="status-item">
-                    <div class="status-value">
-                        <span class="connection-status" id="connectionStatus"></span>
-                        <span id="connectionText">Bağlanıyor...</span>
-                    </div>
-                    <div class="status-label">ESP32 Durumu</div>
+            <div class="status-item">
+                <div class="status-value">
+                    <span class="connection-status" id="connectionStatus"></span>
+                    <span id="connectionText">Bağlanıyor...</span>
                 </div>
-                <div class="status-item">
-                    <div class="status-value" id="pumpStatus">KAPALI</div>
-                    <div class="status-label">Su Pompası</div>
-                </div>
-                <div class="status-item">
-                    <div class="status-value" id="ledStatus">KAPALI</div>
-                    <div class="status-label">Kontrol LED</div>
-                </div>
-                <div class="status-item">
-                    <div class="status-value" id="lastUpdate">--:--:--</div>
-                    <div class="status-label">Son Güncelleme</div>
-                </div>
+                <div class="status-label">ESP32 Durumu</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="led1Status">KAPALI</div>
+                <div class="status-label">LED 1</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="led2Status">KAPALI</div>
+                <div class="status-label">LED 2</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="lastUpdate">--:--:--</div>
+                <div class="status-label">Son Güncelleme</div>
             </div>
         </div>
 
-        <div class="cards-grid">
-            <div class="card">
-                <h3>🚰 Su Pompası Kontrolü</h3>
-                <div class="pump-controls">
-                    <button class="btn btn-success" onclick="controlPump(true)">POMPAYI AÇ</button>
-                    <button class="btn btn-danger" onclick="controlPump(false)">POMPAYI KAPAT</button>
-                </div>
-                <div class="pump-controls">
-                    <button class="btn btn-warning" onclick="testPump()">5 SANİYE TEST</button>
-                    <button class="btn btn-info" onclick="restartESP32()">ESP32 YENİDEN BAŞLAT</button>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>💡 LED Kontrolü</h3>
-                <div class="pump-controls">
-                    <button class="btn btn-success" onclick="controlLED(true)">LED'İ AÇ</button>
-                    <button class="btn btn-danger" onclick="controlLED(false)">LED'İ KAPAT</button>
-                </div>
-                <p style="text-align: center; margin-top: 15px; color: #666;">
-                    GPIO4 pinine bağlı LED'i kontrol edin
-                </p>
-            </div>
-
-            <div class="card">
-                <h3>💧 Nem Sensörü</h3>
-                <div class="moisture-display">
-                    <div class="moisture-bar">
-                        <div class="moisture-fill" id="moistureFill"></div>
-                        <div class="moisture-text" id="moistureText">0%</div>
-                    </div>
-                    <p>Toprak Nem Seviyesi: <strong id="moistureLevel">0</strong> / 4095</p>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>📊 Sistem Verileri</h3>
-                <div class="history-chart">
-                    <p>Grafik yakında eklenecek...</p>
-                </div>
-            </div>
-
-            <div class="card">
-                <h3>📝 Sistem Logları</h3>
-                <div class="log-container" id="systemLogs">
-                    <div>Sistem başlatılıyor...</div>
-                </div>
+        <!-- Debug Bilgileri -->
+        <div class="card">
+            <h3>🔍 Debug Bilgileri</h3>
+            <div id="debugInfo" class="debug-info">
+                Veriler yükleniyor...
             </div>
         </div>
 
-        <div class="footer">
-            <p>ESP32 Su Pompası Sistemi v1.0 | MQTT: 192.168.1.7:1883</p>
+        <!-- LED Kontrol Paneli -->
+        <div class="card">
+            <h3>💡 LED Kontrol Paneli</h3>
+            
+            <div class="led-container">
+                <div class="led-box" id="led1Box">
+                    <div class="led-icon">💡</div>
+                    <div class="led-label">LED 1 (GPIO2)</div>
+                    <div class="led-controls">
+                        <button class="btn btn-success" onclick="controlLED('led1', 'on')">AÇ</button>
+                        <button class="btn btn-danger" onclick="controlLED('led1', 'off')">KAPAT</button>
+                    </div>
+                </div>
+                
+                <div class="led-box" id="led2Box">
+                    <div class="led-icon">💡</div>
+                    <div class="led-label">LED 2 (GPIO5)</div>
+                    <div class="led-controls">
+                        <button class="btn btn-success" onclick="controlLED('led2', 'on')">AÇ</button>
+                        <button class="btn btn-danger" onclick="controlLED('led2', 'off')">KAPAT</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-panel">
+                <button class="btn btn-warning" onclick="controlAllLEDs('on')">HEPSİNİ AÇ</button>
+                <button class="btn btn-warning" onclick="controlAllLEDs('off')">HEPSİNİ KAPAT</button>
+                <button class="btn btn-info" onclick="restartESP32()">ESP32 RESTART</button>
+                <button class="btn btn-info" onclick="refreshData()">YENİLE</button>
+            </div>
+        </div>
+
+        <!-- Sistem Logları -->
+        <div class="card">
+            <h3>📝 Sistem Logları</h3>
+            <div class="log-container" id="systemLogs">
+                <div>Sistem başlatılıyor...</div>
+            </div>
         </div>
     </div>
-
-    <button class="btn btn-info refresh-btn" onclick="refreshData()">🔄 YENİLE</button>
 
     <script>
         let systemData = {};
         let logCount = 0;
 
         // API çağrıları
-        async function apiCall(url, method = 'GET', data = null) {
+        async function apiCall(url) {
             try {
-                const options = {
-                    method: method,
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                };
-                
-                if (data) {
-                    options.body = JSON.stringify(data);
-                }
-                
-                const response = await fetch(url, options);
+                console.log(`API çağrısı: ${url}`);
+                const response = await fetch(url);
                 const result = await response.json();
                 
                 if (!response.ok) {
                     throw new Error(result.message || 'API hatası');
                 }
                 
+                console.log(`API sonucu:`, result);
                 return result;
             } catch (error) {
                 console.error('API Hatası:', error);
-                addLog(`❌ Hata: ${error.message}`, 'error');
+                addLog(`API Hatası: ${error.message}`, 'error');
                 throw error;
             }
         }
 
-        // Su pompası kontrolü
-        async function controlPump(state) {
-            try {
-                const result = await apiCall('/api/pump', 'POST', { state: state });
-                addLog(`✅ ${result.message}`);
-                refreshData();
-            } catch (error) {
-                addLog(`❌ Pompa kontrolü hatası: ${error.message}`, 'error');
-            }
-        }
-
         // LED kontrolü
-        async function controlLED(state) {
+        async function controlLED(led, action) {
             try {
-                const result = await apiCall('/api/led', 'POST', { state: state });
-                addLog(`💡 ${result.message}`);
-                refreshData();
+                console.log(`LED kontrolü: ${led} -> ${action}`);
+                const result = await apiCall(`/api/${led}/${action}`);
+                addLog(`${led.toUpperCase()} ${action.toUpperCase()}: ${result.message}`);
+                await refreshData();
             } catch (error) {
-                addLog(`❌ LED kontrolü hatası: ${error.message}`, 'error');
+                console.error('LED kontrol hatası:', error);
             }
         }
 
-        // Test pompası
-        async function testPump() {
+        // Tüm LED'ler kontrolü
+        async function controlAllLEDs(action) {
             try {
-                const result = await apiCall('/api/test/pump');
-                addLog(`🧪 ${result.message}`);
+                console.log(`Tüm LED kontrolü: ${action}`);
+                const result = await apiCall(`/api/all/${action}`);
+                addLog(`TÜM LED ${action.toUpperCase()}: ${result.message}`);
+                await refreshData();
             } catch (error) {
-                addLog(`❌ Test hatası: ${error.message}`, 'error');
+                console.error('Toplu LED kontrol hatası:', error);
             }
         }
 
-        // ESP32 yeniden başlat
+        // ESP32 yeniden başlatma
         async function restartESP32() {
             if (confirm('ESP32\'yi yeniden başlatmak istediğinizden emin misiniz?')) {
                 try {
-                    const result = await apiCall('/api/system/restart', 'POST');
-                    addLog(`🔄 ${result.message}`);
+                    const result = await apiCall('/api/restart');
+                    addLog(`RESTART: ${result.message}`);
                 } catch (error) {
-                    addLog(`❌ Yeniden başlatma hatası: ${error.message}`, 'error');
+                    console.error('Restart hatası:', error);
                 }
             }
         }
@@ -409,14 +350,36 @@
                 const data = await apiCall('/api/status');
                 systemData = data;
                 updateUI();
-                addLog('📡 Veriler güncellendi');
+                console.log('Veriler güncellendi:', systemData);
             } catch (error) {
-                addLog(`❌ Veri alma hatası: ${error.message}`, 'error');
+                console.error('Veri yenileme hatası:', error);
+                addLog('Veri yenileme hatası!', 'error');
             }
         }
 
         // UI güncelleme
         function updateUI() {
+            console.log('UI güncelleniyor:', systemData);
+            
+            // Debug bilgilerini göster
+            const debugInfo = document.getElementById('debugInfo');
+            debugInfo.innerHTML = `
+                <strong>📊 Sistem Verileri:</strong><br>
+                LED1 State: ${systemData.led1_state} (${typeof systemData.led1_state})<br>
+                LED2 State: ${systemData.led2_state} (${typeof systemData.led2_state})<br>
+                ESP32 Connected: ${systemData.esp32_connected}<br>
+                Last Update: ${systemData.last_update || 'hiç'}<br><br>
+                
+                <strong>🔍 DOM Elementleri:</strong><br>
+                LED1 Box: ${document.getElementById('led1Box') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
+                LED2 Box: ${document.getElementById('led2Box') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
+                LED1 Active Class: ${document.getElementById('led1Box')?.classList.contains('active') ? '✅ VAR' : '❌ YOK'}<br>
+                LED2 Active Class: ${document.getElementById('led2Box')?.classList.contains('active') ? '✅ VAR' : '❌ YOK'}<br><br>
+                
+                <strong>📝 RAW JSON:</strong><br>
+                <pre>${JSON.stringify(systemData, null, 2)}</pre>
+            `;
+            
             // Bağlantı durumu
             const connectionStatus = document.getElementById('connectionStatus');
             const connectionText = document.getElementById('connectionText');
@@ -429,20 +392,36 @@
                 connectionText.textContent = 'BAĞLANTI YOK';
             }
 
-            // Pompa durumu
-            document.getElementById('pumpStatus').textContent = systemData.pump_state ? 'AÇIK' : 'KAPALI';
+            // LED durumları
+            document.getElementById('led1Status').textContent = systemData.led1_state ? 'AÇIK' : 'KAPALI';
+            document.getElementById('led2Status').textContent = systemData.led2_state ? 'AÇIK' : 'KAPALI';
             
-            // LED durumu
-            document.getElementById('ledStatus').textContent = systemData.led_state ? 'AÇIK' : 'KAPALI';
+            // LED görsel durumları
+            const led1Box = document.getElementById('led1Box');
+            const led2Box = document.getElementById('led2Box');
+            
+            if (led1Box) {
+                if (systemData.led1_state) {
+                    led1Box.classList.add('active');
+                    console.log('✅ LED1 kutusuna active eklendi');
+                } else {
+                    led1Box.classList.remove('active');
+                    console.log('❌ LED1 kutusundan active kaldırıldı');
+                }
+            }
+            
+            if (led2Box) {
+                if (systemData.led2_state) {
+                    led2Box.classList.add('active');
+                    console.log('✅ LED2 kutusuna active eklendi');
+                } else {
+                    led2Box.classList.remove('active');
+                    console.log('❌ LED2 kutusundan active kaldırıldı');
+                }
+            }
             
             // Son güncelleme
             document.getElementById('lastUpdate').textContent = systemData.last_update || '--:--:--';
-            
-            // Nem seviyesi
-            const moisturePercent = systemData.moisture_percent || 0;
-            document.getElementById('moistureText').textContent = `${moisturePercent}%`;
-            document.getElementById('moistureFill').style.width = `${moisturePercent}%`;
-            document.getElementById('moistureLevel').textContent = systemData.moisture_level || 0;
         }
 
         // Log ekleme
@@ -460,19 +439,23 @@
             logContainer.appendChild(logEntry);
             logContainer.scrollTop = logContainer.scrollHeight;
             
-            // Max 50 log tutma
-            while (logContainer.children.length > 50) {
+            // Log sayısını sınırla
+            logCount++;
+            if (logCount > 50) {
                 logContainer.removeChild(logContainer.firstChild);
+                logCount--;
             }
         }
 
         // Sayfa yüklendiğinde başlat
         document.addEventListener('DOMContentLoaded', function() {
-            addLog('🚀 Web dashboard başlatıldı');
+            addLog('🚀 Dashboard başlatıldı');
+            addLog('🔄 İlk veri yükleniyor...');
             refreshData();
             
-            // Otomatik yenileme (5 saniyede bir)
-            setInterval(refreshData, 5000);
+            // Otomatik yenileme (10 saniyede bir)
+            setInterval(refreshData, 10000);
+            addLog('⏰ Otomatik yenileme aktif (10 saniye)');
         });
     </script>
 </body>

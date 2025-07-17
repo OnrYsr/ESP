@@ -8,37 +8,46 @@ const char* password = "3883D488Y7";
 const char* mqtt_server = "192.168.1.7";      // Raspberry Pi IP
 
 // Pin tanımlamaları
-const int PUMP_PIN = 2;          // Su pompası röle pini (GPIO2)
-const int LED_PIN = 13;          // Durum LED'i (GPIO13)
-const int CONTROL_LED_PIN = 4;   // Kontrol edilebilir LED (GPIO4)
-const int MOISTURE_PIN = A0;     // Nem sensörü analog pini (A0)
+const int STATUS_LED_PIN = 13;    // Durum LED'i (GPIO13) - WiFi durumu
+const int LED1_PIN = 2;           // Kontrol edilebilir LED 1 (GPIO2) - GPIO4 yerine
+const int LED2_PIN = 5;           // Kontrol edilebilir LED 2 (GPIO5)
 
 // MQTT client
 WiFiClient espClient;
 PubSubClient client(espClient);
 
 // Değişkenler
-bool pumpState = false;
-bool controlLedState = false;    // Kontrol edilebilir LED durumu
-int moistureLevel = 0;
-unsigned long lastSensorRead = 0;
-const unsigned long SENSOR_INTERVAL = 5000; // 5 saniye
+bool led1State = false;          // LED 1 durumu
+bool led2State = false;          // LED 2 durumu
+unsigned long lastStatusSend = 0;
+const unsigned long STATUS_INTERVAL = 10000; // 10 saniye
 
 void setup() {
   Serial.begin(115200);
   
   // Pin modları
-  pinMode(PUMP_PIN, OUTPUT);
-  pinMode(LED_PIN, OUTPUT);
-  pinMode(CONTROL_LED_PIN, OUTPUT);
-  pinMode(MOISTURE_PIN, INPUT);
+  pinMode(STATUS_LED_PIN, OUTPUT);
+  pinMode(LED1_PIN, OUTPUT);
+  pinMode(LED2_PIN, OUTPUT);
   
   // Başlangıç durumu
-  digitalWrite(PUMP_PIN, LOW);
-  digitalWrite(LED_PIN, LOW);
-  digitalWrite(CONTROL_LED_PIN, LOW);
+  digitalWrite(STATUS_LED_PIN, LOW);
+  digitalWrite(LED1_PIN, LOW);
+  digitalWrite(LED2_PIN, LOW);
   
-  Serial.println("ESP32 Su Pompası Kontrolcüsü Başlatılıyor...");
+  Serial.println("ESP32 Dual LED Kontrol Sistemi Başlatılıyor...");
+  Serial.printf("LED1 Pin: %d\n", LED1_PIN);
+  Serial.printf("LED2 Pin: %d\n", LED2_PIN);
+  
+  // LED test
+  Serial.println("LED test başlıyor...");
+  digitalWrite(LED1_PIN, HIGH);
+  delay(500);
+  digitalWrite(LED1_PIN, LOW);
+  digitalWrite(LED2_PIN, HIGH);
+  delay(500);
+  digitalWrite(LED2_PIN, LOW);
+  Serial.println("LED test tamamlandı.");
   
   // WiFi bağlantısı
   setupWiFi();
@@ -48,7 +57,7 @@ void setup() {
   client.setCallback(onMqttMessage);
   
   Serial.println("Sistem hazır!");
-  blinkLED(3); // Hazır sinyali
+  blinkStatusLED(3); // Hazır sinyali
 }
 
 void setupWiFi() {
@@ -58,13 +67,13 @@ void setupWiFi() {
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    digitalWrite(LED_PIN, !digitalRead(LED_PIN)); // Bağlantı sırasında LED yanıp sönsün
+    digitalWrite(STATUS_LED_PIN, !digitalRead(STATUS_LED_PIN)); // Bağlantı sırasında LED yanıp sönsün
   }
   
   Serial.println();
   Serial.print("WiFi bağlandı! IP: ");
   Serial.println(WiFi.localIP());
-  digitalWrite(LED_PIN, HIGH); // Bağlantı başarılı
+  digitalWrite(STATUS_LED_PIN, HIGH); // Bağlantı başarılı
 }
 
 void onMqttMessage(char* topic, byte* payload, unsigned int length) {
@@ -75,21 +84,21 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
   
   Serial.printf("MQTT Mesajı alındı [%s]: %s\n", topic, message.c_str());
   
-  // Su pompası kontrolü
-  if (String(topic) == "water/pump") {
+  // LED 1 kontrolü
+  if (String(topic) == "led1/control") {
     if (message == "ON" || message == "1") {
-      controlPump(true);
+      controlLED1(true);
     } else if (message == "OFF" || message == "0") {
-      controlPump(false);
+      controlLED1(false);
     }
   }
   
-  // LED kontrolü
-  if (String(topic) == "led/control") {
+  // LED 2 kontrolü
+  if (String(topic) == "led2/control") {
     if (message == "ON" || message == "1") {
-      controlLED(true);
+      controlLED2(true);
     } else if (message == "OFF" || message == "0") {
-      controlLED(false);
+      controlLED2(false);
     }
   }
   
@@ -99,81 +108,65 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
       sendSystemStatus();
     } else if (message == "restart") {
       ESP.restart();
+    } else if (message == "all_on") {
+      controlLED1(true);
+      controlLED2(true);
+    } else if (message == "all_off") {
+      controlLED1(false);
+      controlLED2(false);
     }
   }
 }
 
-void controlPump(bool state) {
-  pumpState = state;
-  digitalWrite(PUMP_PIN, state ? HIGH : LOW);
+void controlLED1(bool state) {
+  led1State = state;
+  digitalWrite(LED1_PIN, state ? HIGH : LOW);
   
   String status = state ? "ON" : "OFF";
-  Serial.printf("Su pompası: %s\n", status.c_str());
+  Serial.printf("LED 1 (GPIO%d): %s\n", LED1_PIN, status.c_str());
   
   // MQTT ile durumu bildir
-  client.publish("water/pump/status", status.c_str());
-  
-  // LED durumu güncelle
-  digitalWrite(LED_PIN, state ? HIGH : LOW);
+  client.publish("led1/status", status.c_str());
 }
 
-void controlLED(bool state) {
-  controlLedState = state;
-  digitalWrite(CONTROL_LED_PIN, state ? HIGH : LOW);
+void controlLED2(bool state) {
+  led2State = state;
+  digitalWrite(LED2_PIN, state ? HIGH : LOW);
   
   String status = state ? "ON" : "OFF";
-  Serial.printf("Kontrol LED'i: %s\n", status.c_str());
+  Serial.printf("LED 2 (GPIO%d): %s\n", LED2_PIN, status.c_str());
   
   // MQTT ile durumu bildir
-  client.publish("led/status", status.c_str());
-}
-
-void readSensors() {
-  // Nem sensörü oku
-  moistureLevel = analogRead(MOISTURE_PIN);
-  
-  // JSON formatında veri hazırla
-  StaticJsonDocument<200> doc;
-  doc["moisture"] = moistureLevel;
-  doc["moisture_percent"] = map(moistureLevel, 0, 4095, 0, 100);
-  doc["pump_state"] = pumpState;
-  doc["led_state"] = controlLedState;
-  doc["timestamp"] = millis();
-  
-  String sensorData;
-  serializeJson(doc, sensorData);
-  
-  // MQTT ile gönder
-  client.publish("sensors/data", sensorData.c_str());
-  
-  Serial.printf("Sensör verisi: Nem=%d (%d%%), Pompa=%s\n", 
-    moistureLevel, 
-    map(moistureLevel, 0, 4095, 0, 100),
-    pumpState ? "ON" : "OFF"
-  );
+  client.publish("led2/status", status.c_str());
 }
 
 void sendSystemStatus() {
-  StaticJsonDocument<300> doc;
-  doc["device"] = "ESP32_WaterController";
+  StaticJsonDocument<200> doc;
+  doc["device"] = "ESP32_DualLED_Controller";
   doc["wifi_signal"] = WiFi.RSSI();
   doc["free_heap"] = ESP.getFreeHeap();
   doc["uptime"] = millis();
-  doc["pump_state"] = pumpState;
-  doc["led_state"] = controlLedState;
-  doc["moisture_level"] = moistureLevel;
+  doc["led1_state"] = led1State;
+  doc["led2_state"] = led2State;
+  doc["timestamp"] = millis();
   
   String statusData;
   serializeJson(doc, statusData);
   
   client.publish("system/status", statusData.c_str());
+  
+  Serial.printf("Sistem durumu: LED1=%s, LED2=%s, WiFi=%ddBm\n", 
+    led1State ? "ON" : "OFF",
+    led2State ? "ON" : "OFF",
+    WiFi.RSSI()
+  );
 }
 
-void blinkLED(int times) {
+void blinkStatusLED(int times) {
   for (int i = 0; i < times; i++) {
-    digitalWrite(LED_PIN, HIGH);
+    digitalWrite(STATUS_LED_PIN, HIGH);
     delay(200);
-    digitalWrite(LED_PIN, LOW);
+    digitalWrite(STATUS_LED_PIN, LOW);
     delay(200);
   }
 }
@@ -182,17 +175,18 @@ void reconnectMQTT() {
   while (!client.connected()) {
     Serial.print("MQTT'ye bağlanıyor...");
     
-    if (client.connect("ESP32WaterController")) {
+    if (client.connect("ESP32DualLEDController")) {
       Serial.println("bağlandı!");
       
       // Topic'lere abone ol
-      client.subscribe("water/pump");
-      client.subscribe("led/control");
+      client.subscribe("led1/control");
+      client.subscribe("led2/control");
       client.subscribe("system/command");
       
       // Bağlantı durumunu bildir
-      client.publish("system/status", "ESP32 Connected");
-      blinkLED(2); // Bağlantı sinyali
+      client.publish("system/status", "ESP32 Dual LED Connected");
+      sendSystemStatus(); // İlk durum bilgisi
+      blinkStatusLED(2); // Bağlantı sinyali
       
     } else {
       Serial.printf("başarısız, rc=%d 5 saniye sonra tekrar dene\n", client.state());
@@ -208,10 +202,10 @@ void loop() {
   }
   client.loop();
   
-  // Sensör verilerini oku (belirli aralıklarla)
-  if (millis() - lastSensorRead > SENSOR_INTERVAL) {
-    readSensors();
-    lastSensorRead = millis();
+  // Periyodik durum gönderimi (10 saniyede bir)
+  if (millis() - lastStatusSend > STATUS_INTERVAL) {
+    sendSystemStatus();
+    lastStatusSend = millis();
   }
   
   delay(100); // CPU'yu meşgul etme
