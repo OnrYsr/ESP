@@ -1,0 +1,81 @@
+# ESP32 Su Pompası Sistemi - .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Flask
+instance/
+.webassets-cache
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# MacOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Arduino IDE
+*.hex
+*.bin
+*.elf
+*.map
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# WiFi credentials (güvenlik için)
+# config.h
+# credentials.txt
+
+# MQTT broker data
+mosquitto.db
+*.db
+
+# Backup files
+*.backup
+*.bak
+
+# System files
+.env
+.env.local
+.env.production 

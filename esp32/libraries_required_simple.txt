@@ -1,0 +1,34 @@
+ESP32 Su Pompası Kontrolcüsü için Gerekli Kütüphaneler (Basit Versiyon):
+
+Arduino IDE Library Manager'dan kurun:
+
+1. PubSubClient (by Nick O'Leary)
+   - MQTT haberleşme için
+   - Version: 2.8 veya üzeri
+
+2. WiFi (ESP32 için built-in)
+   - WiFi bağlantısı için
+   - ESP32 Core ile gelir
+
+NOT: Bu basit versiyon ArduinoJson kullanmaz!
+- JSON yerine basit string formatı kullanır
+- Daha az RAM kullanır
+- Kurulum daha kolay
+
+Kurulum:
+1. Arduino IDE'yi açın
+2. Tools > Manage Libraries
+3. Sadece "PubSubClient" kütüphanesini arayın ve kurun
+4. Board Manager'dan ESP32 board package'ini kurun
+
+Pin Bağlantıları:
+- GPIO2  -> Röle modülü IN pini (su pompası kontrolü)
+- GPIO4  -> Kontrol edilebilir LED pozitif bacak (yeni LED)
+- GPIO13 -> Durum LED pozitif bacak (sistem durumu)
+- A0     -> Nem sensörü analog çıkışı
+- 3.3V   -> Sensör beslemesi
+- GND    -> Ortak toprak (tüm bileşenler)
+
+Veri Formatı:
+ArduinoJson yerine basit string formatı:
+"moisture:1234,moisture_percent:30,pump_state:true,led_state:false" 
