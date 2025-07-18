@@ -5,7 +5,7 @@
 // WiFi ayarları
 const char* ssid = "Zyxel_3691";               
 const char* password = "3883D488Y7";         
-const char* mqtt_server = "192.168.1.7";      // Raspberry Pi IP
+const char* mqtt_server = "56.228.30.48";      // AWS EC2 IP (eski: 192.168.1.7)
 
 // Pin tanımlamaları
 const int STATUS_LED_PIN = 13;    // Durum LED'i (GPIO13) - WiFi durumu
