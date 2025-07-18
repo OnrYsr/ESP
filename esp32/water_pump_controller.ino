@@ -11,6 +11,7 @@ const char* mqtt_server = "192.168.1.7";      // Raspberry Pi IP
 const int STATUS_LED_PIN = 13;    // Durum LED'i (GPIO13) - WiFi durumu
 const int LED1_PIN = 2;           // Kontrol edilebilir LED 1 (GPIO2) - GPIO4 yerine
 const int LED2_PIN = 5;           // Kontrol edilebilir LED 2 (GPIO5)
+const int PUMP_PIN = 14;          // Su pompası kontrolü (GPIO14) - transistör ile
 
 // MQTT client
 WiFiClient espClient;
@@ -19,6 +20,7 @@ PubSubClient client(espClient);
 // Değişkenler
 bool led1State = false;          // LED 1 durumu
 bool led2State = false;          // LED 2 durumu
+bool pumpState = false;          // Su pompası durumu
 unsigned long lastStatusSend = 0;
 const unsigned long STATUS_INTERVAL = 10000; // 10 saniye
 
@@ -29,15 +31,18 @@ void setup() {
   pinMode(STATUS_LED_PIN, OUTPUT);
   pinMode(LED1_PIN, OUTPUT);
   pinMode(LED2_PIN, OUTPUT);
+  pinMode(PUMP_PIN, OUTPUT);
   
   // Başlangıç durumu
   digitalWrite(STATUS_LED_PIN, LOW);
   digitalWrite(LED1_PIN, LOW);
   digitalWrite(LED2_PIN, LOW);
+  digitalWrite(PUMP_PIN, LOW);
   
-  Serial.println("ESP32 Dual LED Kontrol Sistemi Başlatılıyor...");
+  Serial.println("ESP32 Dual LED + Pump Kontrol Sistemi Başlatılıyor...");
   Serial.printf("LED1 Pin: %d\n", LED1_PIN);
   Serial.printf("LED2 Pin: %d\n", LED2_PIN);
+  Serial.printf("Pump Pin: %d\n", PUMP_PIN);
   
   // LED test
   Serial.println("LED test başlıyor...");
@@ -48,6 +53,13 @@ void setup() {
   delay(500);
   digitalWrite(LED2_PIN, LOW);
   Serial.println("LED test tamamlandı.");
+  
+  // Pump test
+  Serial.println("Pump test başlıyor...");
+  digitalWrite(PUMP_PIN, HIGH);
+  delay(1000);
+  digitalWrite(PUMP_PIN, LOW);
+  Serial.println("Pump test tamamlandı.");
   
   // WiFi bağlantısı
   setupWiFi();
@@ -102,6 +114,15 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
     }
   }
   
+  // Su pompası kontrolü
+  if (String(topic) == "pump/control") {
+    if (message == "ON" || message == "1") {
+      controlPump(true);
+    } else if (message == "OFF" || message == "0") {
+      controlPump(false);
+    }
+  }
+  
   // Sistem komutları
   if (String(topic) == "system/command") {
     if (message == "status") {
@@ -111,9 +132,11 @@ void onMqttMessage(char* topic, byte* payload, unsigned int length) {
     } else if (message == "all_on") {
       controlLED1(true);
       controlLED2(true);
+      controlPump(true);
     } else if (message == "all_off") {
       controlLED1(false);
       controlLED2(false);
+      controlPump(false);
     }
   }
 }
@@ -140,6 +163,17 @@ void controlLED2(bool state) {
   client.publish("led2/status", status.c_str());
 }
 
+void controlPump(bool state) {
+  pumpState = state;
+  digitalWrite(PUMP_PIN, state ? HIGH : LOW);
+  
+  String status = state ? "ON" : "OFF";
+  Serial.printf("Pump (GPIO%d): %s\n", PUMP_PIN, status.c_str());
+  
+  // MQTT ile durumu bildir
+  client.publish("pump/status", status.c_str());
+}
+
 void sendSystemStatus() {
   StaticJsonDocument<200> doc;
   doc["device"] = "ESP32_DualLED_Controller";
@@ -148,6 +182,7 @@ void sendSystemStatus() {
   doc["uptime"] = millis();
   doc["led1_state"] = led1State;
   doc["led2_state"] = led2State;
+  doc["pump_state"] = pumpState;
   doc["timestamp"] = millis();
   
   String statusData;
@@ -181,6 +216,7 @@ void reconnectMQTT() {
       // Topic'lere abone ol
       client.subscribe("led1/control");
       client.subscribe("led2/control");
+      client.subscribe("pump/control");
       client.subscribe("system/command");
       
       // Bağlantı durumunu bildir

@@ -208,8 +208,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>💡 ESP32 Dual LED Kontrol</h1>
-            <p>2 LED'i Web Üzerinden Kontrol Edin</p>
+            <h1>💡 ESP32 Dual LED + Pump Kontrol</h1>
+            <p>2 LED + Su Pompasını Web Üzerinden Kontrol Edin</p>
         </div>
 
         <!-- Durum Çubuğu -->
@@ -228,6 +228,10 @@
             <div class="status-item">
                 <div class="status-value" id="led2Status">KAPALI</div>
                 <div class="status-label">LED 2</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="pumpStatus">KAPALI</div>
+                <div class="status-label">Su Pompası</div>
             </div>
             <div class="status-item">
                 <div class="status-value" id="lastUpdate">--:--:--</div>
@@ -275,6 +279,22 @@
             </div>
         </div>
 
+        <!-- Su Pompası Kontrol Paneli -->
+        <div class="card">
+            <h3>🚰 Su Pompası Kontrol Paneli</h3>
+            
+            <div class="led-container">
+                <div class="led-box" id="pumpBox">
+                    <div class="led-icon">🚰</div>
+                    <div class="led-label">Su Pompası (GPIO14)</div>
+                    <div class="led-controls">
+                        <button class="btn btn-success" onclick="controlPump('on')">AÇ</button>
+                        <button class="btn btn-danger" onclick="controlPump('off')">KAPAT</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Sistem Logları -->
         <div class="card">
             <h3>📝 Sistem Logları</h3>
@@ -317,6 +337,18 @@
                 await refreshData();
             } catch (error) {
                 console.error('LED kontrol hatası:', error);
+            }
+        }
+
+        // Su pompası kontrolü
+        async function controlPump(action) {
+            try {
+                console.log(`Pump kontrolü: ${action}`);
+                const result = await apiCall(`/api/pump/${action}`);
+                addLog(`PUMP ${action.toUpperCase()}: ${result.message}`);
+                await refreshData();
+            } catch (error) {
+                console.error('Pump kontrol hatası:', error);
             }
         }
 
@@ -367,14 +399,17 @@
                 <strong>📊 Sistem Verileri:</strong><br>
                 LED1 State: ${systemData.led1_state} (${typeof systemData.led1_state})<br>
                 LED2 State: ${systemData.led2_state} (${typeof systemData.led2_state})<br>
+                Pump State: ${systemData.pump_state} (${typeof systemData.pump_state})<br>
                 ESP32 Connected: ${systemData.esp32_connected}<br>
                 Last Update: ${systemData.last_update || 'hiç'}<br><br>
                 
                 <strong>🔍 DOM Elementleri:</strong><br>
                 LED1 Box: ${document.getElementById('led1Box') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
                 LED2 Box: ${document.getElementById('led2Box') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
+                Pump Box: ${document.getElementById('pumpBox') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
                 LED1 Active Class: ${document.getElementById('led1Box')?.classList.contains('active') ? '✅ VAR' : '❌ YOK'}<br>
-                LED2 Active Class: ${document.getElementById('led2Box')?.classList.contains('active') ? '✅ VAR' : '❌ YOK'}<br><br>
+                LED2 Active Class: ${document.getElementById('led2Box')?.classList.contains('active') ? '✅ VAR' : '❌ YOK'}<br>
+                Pump Active Class: ${document.getElementById('pumpBox')?.classList.contains('active') ? '✅ VAR' : '❌ YOK'}<br><br>
                 
                 <strong>📝 RAW JSON:</strong><br>
                 <pre>${JSON.stringify(systemData, null, 2)}</pre>
@@ -395,10 +430,12 @@
             // LED durumları
             document.getElementById('led1Status').textContent = systemData.led1_state ? 'AÇIK' : 'KAPALI';
             document.getElementById('led2Status').textContent = systemData.led2_state ? 'AÇIK' : 'KAPALI';
+            document.getElementById('pumpStatus').textContent = systemData.pump_state ? 'AÇIK' : 'KAPALI';
             
             // LED görsel durumları
             const led1Box = document.getElementById('led1Box');
             const led2Box = document.getElementById('led2Box');
+            const pumpBox = document.getElementById('pumpBox');
             
             if (led1Box) {
                 if (systemData.led1_state) {
@@ -417,6 +454,16 @@
                 } else {
                     led2Box.classList.remove('active');
                     console.log('❌ LED2 kutusundan active kaldırıldı');
+                }
+            }
+            
+            if (pumpBox) {
+                if (systemData.pump_state) {
+                    pumpBox.classList.add('active');
+                    console.log('✅ Pump kutusuna active eklendi');
+                } else {
+                    pumpBox.classList.remove('active');
+                    console.log('❌ Pump kutusundan active kaldırıldı');
                 }
             }
             

@@ -21,6 +21,7 @@ CORS(app)
 system_data = {
     'led1_state': False,
     'led2_state': False,
+    'pump_state': False,
     'last_update': None,
     'esp32_connected': False,
     'system_info': {}
@@ -34,6 +35,8 @@ MQTT_TOPICS = {
     'led1_status': 'led1/status',
     'led2_control': 'led2/control', 
     'led2_status': 'led2/status',
+    'pump_control': 'pump/control',
+    'pump_status': 'pump/status',
     'system_status': 'system/status',
     'system_command': 'system/command'
 }
@@ -67,6 +70,10 @@ def on_mqtt_message(client, userdata, msg):
         elif topic == MQTT_TOPICS['led2_status']:
             system_data['led2_state'] = (message == 'ON')
             system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
+            
+        elif topic == MQTT_TOPICS['pump_status']:
+            system_data['pump_state'] = (message == 'ON')
+            system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
                 
         elif topic == MQTT_TOPICS['system_status']:
             if "ESP32" in message or "Connected" in message:
@@ -79,6 +86,7 @@ def on_mqtt_message(client, userdata, msg):
                 system_data['system_info'] = data
                 system_data['led1_state'] = data.get('led1_state', False)
                 system_data['led2_state'] = data.get('led2_state', False)
+                system_data['pump_state'] = data.get('pump_state', False)
                 system_data['esp32_connected'] = True
                 system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
             except json.JSONDecodeError:
@@ -193,6 +201,36 @@ def all_leds_off():
         return jsonify({
             'success': True,
             'message': 'Tüm LED kapatma komutu gönderildi'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Hata: {str(e)}'
+        }), 500
+
+@app.route('/api/pump/on', methods=['GET', 'POST'])
+def pump_on():
+    """Su pompası açma API"""
+    try:
+        mqtt_client.publish(MQTT_TOPICS['pump_control'], 'ON')
+        return jsonify({
+            'success': True,
+            'message': 'Su pompası açma komutu gönderildi'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Hata: {str(e)}'
+        }), 500
+
+@app.route('/api/pump/off', methods=['GET', 'POST'])
+def pump_off():
+    """Su pompası kapatma API"""
+    try:
+        mqtt_client.publish(MQTT_TOPICS['pump_control'], 'OFF')
+        return jsonify({
+            'success': True,
+            'message': 'Su pompası kapatma komutu gönderildi'
         })
     except Exception as e:
         return jsonify({
