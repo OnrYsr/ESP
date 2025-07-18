@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 ESP32 Dual LED Kontrol Sistemi - Web Server
-Raspberry Pi MQTT Hub ve Web Dashboard
+Raspberry Pi MQTT Hub ve Web Dashboard + SQLite Database
 """
 
 import json
@@ -12,6 +12,12 @@ from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import paho.mqtt.client as mqtt
+
+# Database import
+from database import (
+    init_database, log_system_event, save_device_reading, 
+    save_device_action, get_device_by_pin, get_recent_readings
+)
 
 # Flask app
 app = Flask(__name__)
@@ -75,13 +81,28 @@ def on_mqtt_message(client, userdata, msg):
             system_data['led1_state'] = (message == 'ON')
             system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
             
+            # Database'e cihaz eylemini kaydet
+            led1_device = get_device_by_pin(2)  # GPIO2
+            if led1_device:
+                save_device_action(led1_device['id'], 'status_update', message, 'mqtt')
+            
         elif topic == MQTT_TOPICS['led2_status']:
             system_data['led2_state'] = (message == 'ON')
             system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
             
+            # Database'e cihaz eylemini kaydet
+            led2_device = get_device_by_pin(5)  # GPIO5
+            if led2_device:
+                save_device_action(led2_device['id'], 'status_update', message, 'mqtt')
+            
         elif topic == MQTT_TOPICS['pump_status']:
             system_data['pump_state'] = (message == 'ON')
             system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
+            
+            # Database'e cihaz eylemini kaydet
+            pump_device = get_device_by_pin(14)  # GPIO14
+            if pump_device:
+                save_device_action(pump_device['id'], 'status_update', message, 'mqtt')
             
         elif topic == MQTT_TOPICS['sensors_data']:
             # Sensör verilerini işle
@@ -94,7 +115,27 @@ def on_mqtt_message(client, userdata, msg):
             system_data['moisture3_percent'] = data.get('sensor3', {}).get('percent', 0)
             system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
             
-            # Sensör geçmişi kaydet (son 50 kayıt)
+            # Database'e sensör okumalarını kaydet
+            moisture1_device = get_device_by_pin(32)  # GPIO32
+            moisture2_device = get_device_by_pin(33)  # GPIO33
+            moisture3_device = get_device_by_pin(34)  # GPIO34
+            
+            if moisture1_device:
+                save_device_reading(moisture1_device['id'], 
+                                  system_data['moisture1_raw'], 
+                                  system_data['moisture1_percent'], '%')
+                                  
+            if moisture2_device:
+                save_device_reading(moisture2_device['id'], 
+                                  system_data['moisture2_raw'], 
+                                  system_data['moisture2_percent'], '%')
+                                  
+            if moisture3_device:
+                save_device_reading(moisture3_device['id'], 
+                                  system_data['moisture3_raw'], 
+                                  system_data['moisture3_percent'], '%')
+            
+            # Sensör geçmişi kaydet (bellekte de tut)
             history_entry = {
                 'time': datetime.now().strftime('%H:%M:%S'),
                 'moisture1': system_data['moisture1_percent'],
@@ -109,6 +150,7 @@ def on_mqtt_message(client, userdata, msg):
             if "ESP32" in message or "Connected" in message:
                 system_data['esp32_connected'] = True
                 system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
+                log_system_event(f"ESP32 bağlantı durumu: {message}", "INFO", "mqtt")
                 
             # JSON formatında sistem bilgisi ise
             try:
@@ -125,11 +167,16 @@ def on_mqtt_message(client, userdata, msg):
                 system_data['moisture3_percent'] = data.get('moisture3_percent', 0)
                 system_data['esp32_connected'] = True
                 system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
+                
+                # Sistem durumu logla
+                log_system_event(f"ESP32 sistem durumu güncellendi", "INFO", "mqtt")
+                
             except json.JSONDecodeError:
                 pass
                 
     except Exception as e:
         print(f"Mesaj işleme hatası: {e}")
+        log_system_event(f"MQTT mesaj işleme hatası: {e}", "ERROR", "mqtt")
 
 def setup_mqtt():
     """MQTT client'ı yapılandır"""
@@ -159,11 +206,19 @@ def led1_on():
     """LED1 açma API"""
     try:
         mqtt_client.publish(MQTT_TOPICS['led1_control'], 'ON')
+        
+        # Database'e manuel eylem kaydet
+        led1_device = get_device_by_pin(2)
+        if led1_device:
+            save_device_action(led1_device['id'], 'turn_on', 'ON', 'web_manual')
+        
+        log_system_event("LED1 manuel olarak açıldı", "INFO", "web_api")
         return jsonify({
             'success': True,
             'message': 'LED1 açma komutu gönderildi'
         })
     except Exception as e:
+        log_system_event(f"LED1 açma hatası: {e}", "ERROR", "web_api")
         return jsonify({
             'success': False,
             'message': f'Hata: {str(e)}'
@@ -174,11 +229,19 @@ def led1_off():
     """LED1 kapatma API"""
     try:
         mqtt_client.publish(MQTT_TOPICS['led1_control'], 'OFF')
+        
+        # Database'e manuel eylem kaydet
+        led1_device = get_device_by_pin(2)
+        if led1_device:
+            save_device_action(led1_device['id'], 'turn_off', 'OFF', 'web_manual')
+        
+        log_system_event("LED1 manuel olarak kapatıldı", "INFO", "web_api")
         return jsonify({
             'success': True,
             'message': 'LED1 kapatma komutu gönderildi'
         })
     except Exception as e:
+        log_system_event(f"LED1 kapatma hatası: {e}", "ERROR", "web_api")
         return jsonify({
             'success': False,
             'message': f'Hata: {str(e)}'
@@ -249,11 +312,19 @@ def pump_on():
     """Su pompası açma API"""
     try:
         mqtt_client.publish(MQTT_TOPICS['pump_control'], 'ON')
+        
+        # Database'e manuel eylem kaydet
+        pump_device = get_device_by_pin(14)
+        if pump_device:
+            save_device_action(pump_device['id'], 'turn_on', 'ON', 'web_manual')
+        
+        log_system_event("Su pompası manuel olarak açıldı", "INFO", "web_api")
         return jsonify({
             'success': True,
             'message': 'Su pompası açma komutu gönderildi'
         })
     except Exception as e:
+        log_system_event(f"Su pompası açma hatası: {e}", "ERROR", "web_api")
         return jsonify({
             'success': False,
             'message': f'Hata: {str(e)}'
@@ -340,15 +411,26 @@ def test_led2():
         }), 500
 
 if __name__ == '__main__':
-    print("ESP32 Dual LED Kontrol Sistemi Web Server Başlatılıyor...")
-    print("=" * 50)
+    print("ESP32 Dual LED + Pump + Database Kontrol Sistemi Web Server Başlatılıyor...")
+    print("=" * 70)
+    
+    # Database'i başlat
+    print("🗄️ SQLite Database başlatılıyor...")
+    try:
+        init_database()
+        log_system_event("Web server başlatıldı", "INFO", "web_server")
+        print("✅ Database hazır!")
+    except Exception as e:
+        print(f"❌ Database başlatma hatası: {e}")
+        exit(1)
     
     # MQTT'yi başlat
+    print("📡 MQTT Client başlatılıyor...")
     setup_mqtt()
     
     # Flask web server'ı başlat
-    print("Web server başlatılıyor: http://0.0.0.0:5000")
-    print("Dashboard: http://192.168.1.7:5000")  # Raspberry Pi IP
-    print("=" * 50)
+    print("🌐 Web server başlatılıyor: http://0.0.0.0:5000")
+    print("📱 Dashboard: http://192.168.1.7:5000")  # Raspberry Pi IP
+    print("=" * 70)
     
     app.run(host='0.0.0.0', port=5000, debug=True, threaded=True) 
