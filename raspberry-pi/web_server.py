@@ -22,9 +22,16 @@ system_data = {
     'led1_state': False,
     'led2_state': False,
     'pump_state': False,
+    'moisture1_raw': 0,
+    'moisture1_percent': 0,
+    'moisture2_raw': 0,
+    'moisture2_percent': 0,
+    'moisture3_raw': 0,
+    'moisture3_percent': 0,
     'last_update': None,
     'esp32_connected': False,
-    'system_info': {}
+    'system_info': {},
+    'sensor_history': []
 }
 
 # MQTT ayarları
@@ -37,6 +44,7 @@ MQTT_TOPICS = {
     'led2_status': 'led2/status',
     'pump_control': 'pump/control',
     'pump_status': 'pump/status',
+    'sensors_data': 'sensors/data',
     'system_status': 'system/status',
     'system_command': 'system/command'
 }
@@ -74,6 +82,28 @@ def on_mqtt_message(client, userdata, msg):
         elif topic == MQTT_TOPICS['pump_status']:
             system_data['pump_state'] = (message == 'ON')
             system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
+            
+        elif topic == MQTT_TOPICS['sensors_data']:
+            # Sensör verilerini işle
+            data = json.loads(message)
+            system_data['moisture1_raw'] = data.get('sensor1', {}).get('raw', 0)
+            system_data['moisture1_percent'] = data.get('sensor1', {}).get('percent', 0)
+            system_data['moisture2_raw'] = data.get('sensor2', {}).get('raw', 0)
+            system_data['moisture2_percent'] = data.get('sensor2', {}).get('percent', 0)
+            system_data['moisture3_raw'] = data.get('sensor3', {}).get('raw', 0)
+            system_data['moisture3_percent'] = data.get('sensor3', {}).get('percent', 0)
+            system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
+            
+            # Sensör geçmişi kaydet (son 50 kayıt)
+            history_entry = {
+                'time': datetime.now().strftime('%H:%M:%S'),
+                'moisture1': system_data['moisture1_percent'],
+                'moisture2': system_data['moisture2_percent'],
+                'moisture3': system_data['moisture3_percent']
+            }
+            system_data['sensor_history'].append(history_entry)
+            if len(system_data['sensor_history']) > 50:
+                system_data['sensor_history'].pop(0)
                 
         elif topic == MQTT_TOPICS['system_status']:
             if "ESP32" in message or "Connected" in message:
@@ -87,6 +117,12 @@ def on_mqtt_message(client, userdata, msg):
                 system_data['led1_state'] = data.get('led1_state', False)
                 system_data['led2_state'] = data.get('led2_state', False)
                 system_data['pump_state'] = data.get('pump_state', False)
+                system_data['moisture1_raw'] = data.get('moisture1_raw', 0)
+                system_data['moisture1_percent'] = data.get('moisture1_percent', 0)
+                system_data['moisture2_raw'] = data.get('moisture2_raw', 0)
+                system_data['moisture2_percent'] = data.get('moisture2_percent', 0)
+                system_data['moisture3_raw'] = data.get('moisture3_raw', 0)
+                system_data['moisture3_percent'] = data.get('moisture3_percent', 0)
                 system_data['esp32_connected'] = True
                 system_data['last_update'] = datetime.now().strftime('%H:%M:%S')
             except json.JSONDecodeError:

@@ -13,6 +13,11 @@ const int LED1_PIN = 2;           // Kontrol edilebilir LED 1 (GPIO2) - GPIO4 ye
 const int LED2_PIN = 5;           // Kontrol edilebilir LED 2 (GPIO5)
 const int PUMP_PIN = 14;          // Su pompası kontrolü (GPIO14) - transistör ile
 
+// Analog nem sensörleri
+const int MOISTURE1_PIN = 32;     // Nem sensörü 1 (GPIO32)
+const int MOISTURE2_PIN = 33;     // Nem sensörü 2 (GPIO33)
+const int MOISTURE3_PIN = 34;     // Nem sensörü 3 (GPIO34)
+
 // MQTT client
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -21,8 +26,19 @@ PubSubClient client(espClient);
 bool led1State = false;          // LED 1 durumu
 bool led2State = false;          // LED 2 durumu
 bool pumpState = false;          // Su pompası durumu
+
+// Nem sensörü değişkenleri
+int moisture1Raw = 0;            // Nem sensörü 1 ham değer (0-4095)
+int moisture2Raw = 0;            // Nem sensörü 2 ham değer (0-4095)
+int moisture3Raw = 0;            // Nem sensörü 3 ham değer (0-4095)
+int moisture1Percent = 0;        // Nem sensörü 1 yüzde (0-100)
+int moisture2Percent = 0;        // Nem sensörü 2 yüzde (0-100)
+int moisture3Percent = 0;        // Nem sensörü 3 yüzde (0-100)
+
 unsigned long lastStatusSend = 0;
+unsigned long lastSensorRead = 0;
 const unsigned long STATUS_INTERVAL = 10000; // 10 saniye
+const unsigned long SENSOR_INTERVAL = 5000;  // 5 saniye - sensör okuma
 
 void setup() {
   Serial.begin(115200);
@@ -43,6 +59,9 @@ void setup() {
   Serial.printf("LED1 Pin: %d\n", LED1_PIN);
   Serial.printf("LED2 Pin: %d\n", LED2_PIN);
   Serial.printf("Pump Pin: %d\n", PUMP_PIN);
+  Serial.printf("Moisture1 Pin: %d\n", MOISTURE1_PIN);
+  Serial.printf("Moisture2 Pin: %d\n", MOISTURE2_PIN);
+  Serial.printf("Moisture3 Pin: %d\n", MOISTURE3_PIN);
   
   // LED test
   Serial.println("LED test başlıyor...");
@@ -60,6 +79,13 @@ void setup() {
   delay(1000);
   digitalWrite(PUMP_PIN, LOW);
   Serial.println("Pump test tamamlandı.");
+  
+  // Nem sensörü test
+  Serial.println("Nem sensörü test başlıyor...");
+  readMoistureSensors();
+  Serial.printf("Sensör1: %d (%d%%), Sensör2: %d (%d%%), Sensör3: %d (%d%%)\n", 
+    moisture1Raw, moisture1Percent, moisture2Raw, moisture2Percent, moisture3Raw, moisture3Percent);
+  Serial.println("Nem sensörü test tamamlandı.");
   
   // WiFi bağlantısı
   setupWiFi();
@@ -174,8 +200,46 @@ void controlPump(bool state) {
   client.publish("pump/status", status.c_str());
 }
 
+void readMoistureSensors() {
+  // Analog değerleri oku (0-4095)
+  moisture1Raw = analogRead(MOISTURE1_PIN);
+  moisture2Raw = analogRead(MOISTURE2_PIN);
+  moisture3Raw = analogRead(MOISTURE3_PIN);
+  
+  // Yüzde değerine çevir (nem sensörleri genelde ters çalışır)
+  // 4095 = kuru toprak (0% nem), 0 = ıslak toprak (100% nem)
+  moisture1Percent = map(moisture1Raw, 4095, 0, 0, 100);
+  moisture2Percent = map(moisture2Raw, 4095, 0, 0, 100);
+  moisture3Percent = map(moisture3Raw, 4095, 0, 0, 100);
+  
+  // Negatif değerleri sıfırla
+  moisture1Percent = constrain(moisture1Percent, 0, 100);
+  moisture2Percent = constrain(moisture2Percent, 0, 100);
+  moisture3Percent = constrain(moisture3Percent, 0, 100);
+}
+
+void sendSensorData() {
+  StaticJsonDocument<300> doc;
+  doc["device"] = "ESP32_Moisture_Sensors";
+  doc["sensor1"]["raw"] = moisture1Raw;
+  doc["sensor1"]["percent"] = moisture1Percent;
+  doc["sensor2"]["raw"] = moisture2Raw;
+  doc["sensor2"]["percent"] = moisture2Percent;
+  doc["sensor3"]["raw"] = moisture3Raw;
+  doc["sensor3"]["percent"] = moisture3Percent;
+  doc["timestamp"] = millis();
+  
+  String sensorData;
+  serializeJson(doc, sensorData);
+  
+  client.publish("sensors/data", sensorData.c_str());
+  
+  Serial.printf("Sensör verileri: S1=%d%%, S2=%d%%, S3=%d%%\n", 
+    moisture1Percent, moisture2Percent, moisture3Percent);
+}
+
 void sendSystemStatus() {
-  StaticJsonDocument<200> doc;
+  StaticJsonDocument<400> doc;
   doc["device"] = "ESP32_DualLED_Controller";
   doc["wifi_signal"] = WiFi.RSSI();
   doc["free_heap"] = ESP.getFreeHeap();
@@ -183,6 +247,12 @@ void sendSystemStatus() {
   doc["led1_state"] = led1State;
   doc["led2_state"] = led2State;
   doc["pump_state"] = pumpState;
+  doc["moisture1_raw"] = moisture1Raw;
+  doc["moisture1_percent"] = moisture1Percent;
+  doc["moisture2_raw"] = moisture2Raw;
+  doc["moisture2_percent"] = moisture2Percent;
+  doc["moisture3_raw"] = moisture3Raw;
+  doc["moisture3_percent"] = moisture3Percent;
   doc["timestamp"] = millis();
   
   String statusData;
@@ -190,10 +260,12 @@ void sendSystemStatus() {
   
   client.publish("system/status", statusData.c_str());
   
-  Serial.printf("Sistem durumu: LED1=%s, LED2=%s, WiFi=%ddBm\n", 
+  Serial.printf("Sistem durumu: LED1=%s, LED2=%s, Pump=%s, WiFi=%ddBm, S1=%d%%, S2=%d%%, S3=%d%%\n", 
     led1State ? "ON" : "OFF",
     led2State ? "ON" : "OFF",
-    WiFi.RSSI()
+    pumpState ? "ON" : "OFF",
+    WiFi.RSSI(),
+    moisture1Percent, moisture2Percent, moisture3Percent
   );
 }
 
@@ -237,6 +309,13 @@ void loop() {
     reconnectMQTT();
   }
   client.loop();
+  
+  // Periyodik sensör okuma (5 saniyede bir)
+  if (millis() - lastSensorRead > SENSOR_INTERVAL) {
+    readMoistureSensors();
+    sendSensorData();
+    lastSensorRead = millis();
+  }
   
   // Periyodik durum gönderimi (10 saniyede bir)
   if (millis() - lastStatusSend > STATUS_INTERVAL) {

@@ -208,8 +208,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>💡 ESP32 Dual LED + Pump Kontrol</h1>
-            <p>2 LED + Su Pompasını Web Üzerinden Kontrol Edin</p>
+            <h1>🌱 ESP32 Akıllı Sulama Sistemi</h1>
+            <p>2 LED + Su Pompası + 3 Nem Sensörü Kontrolü</p>
         </div>
 
         <!-- Durum Çubuğu -->
@@ -232,6 +232,18 @@
             <div class="status-item">
                 <div class="status-value" id="pumpStatus">KAPALI</div>
                 <div class="status-label">Su Pompası</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="moisture1Status">--%</div>
+                <div class="status-label">Nem Sensörü 1</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="moisture2Status">--%</div>
+                <div class="status-label">Nem Sensörü 2</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="moisture3Status">--%</div>
+                <div class="status-label">Nem Sensörü 3</div>
             </div>
             <div class="status-item">
                 <div class="status-value" id="lastUpdate">--:--:--</div>
@@ -290,6 +302,40 @@
                     <div class="led-controls">
                         <button class="btn btn-success" onclick="controlPump('on')">AÇ</button>
                         <button class="btn btn-danger" onclick="controlPump('off')">KAPAT</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nem Sensörleri Paneli -->
+        <div class="card">
+            <h3>🌱 Nem Sensörleri</h3>
+            
+            <div class="led-container">
+                <div class="led-box" id="moisture1Box">
+                    <div class="led-icon">🌱</div>
+                    <div class="led-label">Sensör 1 (GPIO32)</div>
+                    <div style="text-align: center; margin-top: 10px;">
+                        <div style="font-size: 2em; font-weight: bold; color: #4CAF50;" id="moisture1Display">--%</div>
+                        <div style="font-size: 0.9em; color: #666;" id="moisture1Raw">Ham: ----</div>
+                    </div>
+                </div>
+                
+                <div class="led-box" id="moisture2Box">
+                    <div class="led-icon">🌱</div>
+                    <div class="led-label">Sensör 2 (GPIO33)</div>
+                    <div style="text-align: center; margin-top: 10px;">
+                        <div style="font-size: 2em; font-weight: bold; color: #4CAF50;" id="moisture2Display">--%</div>
+                        <div style="font-size: 0.9em; color: #666;" id="moisture2Raw">Ham: ----</div>
+                    </div>
+                </div>
+                
+                <div class="led-box" id="moisture3Box">
+                    <div class="led-icon">🌱</div>
+                    <div class="led-label">Sensör 3 (GPIO34)</div>
+                    <div style="text-align: center; margin-top: 10px;">
+                        <div style="font-size: 2em; font-weight: bold; color: #4CAF50;" id="moisture3Display">--%</div>
+                        <div style="font-size: 0.9em; color: #666;" id="moisture3Raw">Ham: ----</div>
                     </div>
                 </div>
             </div>
@@ -400,6 +446,9 @@
                 LED1 State: ${systemData.led1_state} (${typeof systemData.led1_state})<br>
                 LED2 State: ${systemData.led2_state} (${typeof systemData.led2_state})<br>
                 Pump State: ${systemData.pump_state} (${typeof systemData.pump_state})<br>
+                Moisture1: ${systemData.moisture1_percent}% (raw: ${systemData.moisture1_raw})<br>
+                Moisture2: ${systemData.moisture2_percent}% (raw: ${systemData.moisture2_raw})<br>
+                Moisture3: ${systemData.moisture3_percent}% (raw: ${systemData.moisture3_raw})<br>
                 ESP32 Connected: ${systemData.esp32_connected}<br>
                 Last Update: ${systemData.last_update || 'hiç'}<br><br>
                 
@@ -407,6 +456,9 @@
                 LED1 Box: ${document.getElementById('led1Box') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
                 LED2 Box: ${document.getElementById('led2Box') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
                 Pump Box: ${document.getElementById('pumpBox') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
+                Moisture1 Box: ${document.getElementById('moisture1Box') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
+                Moisture2 Box: ${document.getElementById('moisture2Box') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
+                Moisture3 Box: ${document.getElementById('moisture3Box') ? '✅ BULUNDU' : '❌ BULUNAMADI'}<br>
                 LED1 Active Class: ${document.getElementById('led1Box')?.classList.contains('active') ? '✅ VAR' : '❌ YOK'}<br>
                 LED2 Active Class: ${document.getElementById('led2Box')?.classList.contains('active') ? '✅ VAR' : '❌ YOK'}<br>
                 Pump Active Class: ${document.getElementById('pumpBox')?.classList.contains('active') ? '✅ VAR' : '❌ YOK'}<br><br>
@@ -431,6 +483,42 @@
             document.getElementById('led1Status').textContent = systemData.led1_state ? 'AÇIK' : 'KAPALI';
             document.getElementById('led2Status').textContent = systemData.led2_state ? 'AÇIK' : 'KAPALI';
             document.getElementById('pumpStatus').textContent = systemData.pump_state ? 'AÇIK' : 'KAPALI';
+            
+            // Nem sensörü durumları
+            document.getElementById('moisture1Status').textContent = systemData.moisture1_percent + '%';
+            document.getElementById('moisture2Status').textContent = systemData.moisture2_percent + '%';
+            document.getElementById('moisture3Status').textContent = systemData.moisture3_percent + '%';
+            
+            // Nem sensörü detay paneli
+            document.getElementById('moisture1Display').textContent = systemData.moisture1_percent + '%';
+            document.getElementById('moisture1Raw').textContent = 'Ham: ' + systemData.moisture1_raw;
+            document.getElementById('moisture2Display').textContent = systemData.moisture2_percent + '%';
+            document.getElementById('moisture2Raw').textContent = 'Ham: ' + systemData.moisture2_raw;
+            document.getElementById('moisture3Display').textContent = systemData.moisture3_percent + '%';
+            document.getElementById('moisture3Raw').textContent = 'Ham: ' + systemData.moisture3_raw;
+            
+            // Nem sensörü renk kodlaması
+            const moistureBoxes = [
+                { box: document.getElementById('moisture1Box'), percent: systemData.moisture1_percent },
+                { box: document.getElementById('moisture2Box'), percent: systemData.moisture2_percent },
+                { box: document.getElementById('moisture3Box'), percent: systemData.moisture3_percent }
+            ];
+            
+            moistureBoxes.forEach(({ box, percent }) => {
+                if (box) {
+                    box.classList.remove('active');
+                    if (percent < 30) {
+                        box.style.borderColor = '#f44336'; // Kırmızı - kuru
+                        box.style.backgroundColor = 'rgba(244, 67, 54, 0.1)';
+                    } else if (percent < 60) {
+                        box.style.borderColor = '#ff9800'; // Turuncu - orta
+                        box.style.backgroundColor = 'rgba(255, 152, 0, 0.1)';
+                    } else {
+                        box.style.borderColor = '#4CAF50'; // Yeşil - ıslak
+                        box.style.backgroundColor = 'rgba(76, 175, 80, 0.1)';
+                    }
+                }
+            });
             
             // LED görsel durumları
             const led1Box = document.getElementById('led1Box');
