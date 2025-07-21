@@ -8,8 +8,8 @@ const char* password = "3883D488Y7";
 const char* mqtt_server = "56.228.30.48";      // AWS EC2 IP (eski: 192.168.1.7)
 
 // Pin tanımlamaları
-const int STATUS_LED_PIN = 13;    // Durum LED'i (GPIO13) - WiFi durumu
-const int LED1_PIN = 2;           // Kontrol edilebilir LED 1 (GPIO2) - GPIO4 yerine
+const int STATUS_LED_PIN = 2;     // Durum LED'i (GPIO2) - Dahili mavi LED - WiFi/MQTT durumu
+const int LED1_PIN = 4;           // Kontrol edilebilir LED 1 (GPIO4) - GPIO2 yerine dahili LED kullandığımız için
 const int LED2_PIN = 5;           // Kontrol edilebilir LED 2 (GPIO5)
 const int PUMP_PIN = 14;          // Su pompası kontrolü (GPIO14) - transistör ile
 
@@ -50,12 +50,14 @@ void setup() {
   pinMode(PUMP_PIN, OUTPUT);
   
   // Başlangıç durumu
-  digitalWrite(STATUS_LED_PIN, LOW);
+  digitalWrite(STATUS_LED_PIN, LOW);  // Mavi LED kapalı (henüz bağlantı yok)
   digitalWrite(LED1_PIN, LOW);
   digitalWrite(LED2_PIN, LOW);
   digitalWrite(PUMP_PIN, LOW);
   
-  Serial.println("ESP32 Dual LED + Pump Kontrol Sistemi Başlatılıyor...");
+  Serial.println("🚀 ESP32 Dual LED + Pump Kontrol Sistemi Başlatılıyor...");
+  Serial.println("🔴 Kırmızı LED: Enerji durumu (otomatik)");
+  Serial.println("🔵 Mavi LED: Bağlantı durumu (GPIO2)");
   Serial.printf("LED1 Pin: %d\n", LED1_PIN);
   Serial.printf("LED2 Pin: %d\n", LED2_PIN);
   Serial.printf("Pump Pin: %d\n", PUMP_PIN);
@@ -63,55 +65,69 @@ void setup() {
   Serial.printf("Moisture2 Pin: %d\n", MOISTURE2_PIN);
   Serial.printf("Moisture3 Pin: %d\n", MOISTURE3_PIN);
   
-  // LED test
-  Serial.println("LED test başlıyor...");
+  // Sistem başlangıç LED gösterisi
+  Serial.println("💡 Sistem LED testi başlıyor...");
+  for (int i = 0; i < 3; i++) {
+    digitalWrite(STATUS_LED_PIN, HIGH);  // Mavi LED aç
+    delay(200);
+    digitalWrite(STATUS_LED_PIN, LOW);   // Mavi LED kapat
+    delay(200);
+  }
+  Serial.println("✅ LED test tamamlandı.");
+  
+  // Kontrol LED'leri test
+  Serial.println("🧪 Kontrol LED'leri test ediliyor...");
   digitalWrite(LED1_PIN, HIGH);
   delay(500);
   digitalWrite(LED1_PIN, LOW);
   digitalWrite(LED2_PIN, HIGH);
   delay(500);
   digitalWrite(LED2_PIN, LOW);
-  Serial.println("LED test tamamlandı.");
+  Serial.println("✅ Kontrol LED test tamamlandı.");
   
   // Pump test
-  Serial.println("Pump test başlıyor...");
+  Serial.println("🚰 Pump test başlıyor...");
   digitalWrite(PUMP_PIN, HIGH);
   delay(1000);
   digitalWrite(PUMP_PIN, LOW);
-  Serial.println("Pump test tamamlandı.");
+  Serial.println("✅ Pump test tamamlandı.");
   
   // Nem sensörü test
-  Serial.println("Nem sensörü test başlıyor...");
+  Serial.println("🌱 Nem sensörü test başlıyor...");
   readMoistureSensors();
   Serial.printf("Sensör1: %d (%d%%), Sensör2: %d (%d%%), Sensör3: %d (%d%%)\n", 
     moisture1Raw, moisture1Percent, moisture2Raw, moisture2Percent, moisture3Raw, moisture3Percent);
-  Serial.println("Nem sensörü test tamamlandı.");
+  Serial.println("✅ Nem sensörü test tamamlandı.");
   
   // WiFi bağlantısı
+  Serial.println("📡 WiFi bağlantısı başlatılıyor...");
   setupWiFi();
   
   // MQTT ayarları
   client.setServer(mqtt_server, 1883);
   client.setCallback(onMqttMessage);
   
-  Serial.println("Sistem hazır!");
-  blinkStatusLED(3); // Hazır sinyali
+  Serial.println("🎯 Sistem hazır!");
 }
 
 void setupWiFi() {
   WiFi.begin(ssid, password);
-  Serial.print("WiFi'ye bağlanıyor");
+  Serial.print("📡 WiFi'ye bağlanıyor");
   
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    digitalWrite(STATUS_LED_PIN, !digitalRead(STATUS_LED_PIN)); // Bağlantı sırasında LED yanıp sönsün
+    // WiFi bağlantısı sırasında mavi LED yanıp sönsün
+    digitalWrite(STATUS_LED_PIN, !digitalRead(STATUS_LED_PIN));
   }
   
   Serial.println();
-  Serial.print("WiFi bağlandı! IP: ");
+  Serial.print("✅ WiFi bağlandı! IP: ");
   Serial.println(WiFi.localIP());
-  digitalWrite(STATUS_LED_PIN, HIGH); // Bağlantı başarılı
+  
+  // WiFi bağlandığında mavi LED sabit yansın
+  digitalWrite(STATUS_LED_PIN, HIGH);
+  Serial.println("🔵 Mavi LED: WiFi bağlantısı başarılı");
 }
 
 void onMqttMessage(char* topic, byte* payload, unsigned int length) {
@@ -172,7 +188,7 @@ void controlLED1(bool state) {
   digitalWrite(LED1_PIN, state ? HIGH : LOW);
   
   String status = state ? "ON" : "OFF";
-  Serial.printf("LED 1 (GPIO%d): %s\n", LED1_PIN, status.c_str());
+  Serial.printf("💡 LED 1 (GPIO%d): %s\n", LED1_PIN, status.c_str());
   
   // MQTT ile durumu bildir
   client.publish("led1/status", status.c_str());
@@ -183,7 +199,7 @@ void controlLED2(bool state) {
   digitalWrite(LED2_PIN, state ? HIGH : LOW);
   
   String status = state ? "ON" : "OFF";
-  Serial.printf("LED 2 (GPIO%d): %s\n", LED2_PIN, status.c_str());
+  Serial.printf("💡 LED 2 (GPIO%d): %s\n", LED2_PIN, status.c_str());
   
   // MQTT ile durumu bildir
   client.publish("led2/status", status.c_str());
@@ -194,7 +210,7 @@ void controlPump(bool state) {
   digitalWrite(PUMP_PIN, state ? HIGH : LOW);
   
   String status = state ? "ON" : "OFF";
-  Serial.printf("Pump (GPIO%d): %s\n", PUMP_PIN, status.c_str());
+  Serial.printf("🚰 Pump (GPIO%d): %s\n", PUMP_PIN, status.c_str());
   
   // MQTT ile durumu bildir
   client.publish("pump/status", status.c_str());
@@ -234,7 +250,7 @@ void sendSensorData() {
   
   client.publish("sensors/data", sensorData.c_str());
   
-  Serial.printf("Sensör verileri: S1=%d%%, S2=%d%%, S3=%d%%\n", 
+  Serial.printf("🌱 Sensör verileri: S1=%d%%, S2=%d%%, S3=%d%%\n", 
     moisture1Percent, moisture2Percent, moisture3Percent);
 }
 
@@ -253,6 +269,7 @@ void sendSystemStatus() {
   doc["moisture2_percent"] = moisture2Percent;
   doc["moisture3_raw"] = moisture3Raw;
   doc["moisture3_percent"] = moisture3Percent;
+  doc["status_led"] = digitalRead(STATUS_LED_PIN) ? "CONNECTED" : "DISCONNECTED";
   doc["timestamp"] = millis();
   
   String statusData;
@@ -260,30 +277,34 @@ void sendSystemStatus() {
   
   client.publish("system/status", statusData.c_str());
   
-  Serial.printf("Sistem durumu: LED1=%s, LED2=%s, Pump=%s, WiFi=%ddBm, S1=%d%%, S2=%d%%, S3=%d%%\n", 
+  Serial.printf("📊 Sistem durumu: LED1=%s, LED2=%s, Pump=%s, WiFi=%ddBm, S1=%d%%, S2=%d%%, S3=%d%%, Status=🔵%s\n", 
     led1State ? "ON" : "OFF",
     led2State ? "ON" : "OFF",
     pumpState ? "ON" : "OFF",
     WiFi.RSSI(),
-    moisture1Percent, moisture2Percent, moisture3Percent
+    moisture1Percent, moisture2Percent, moisture3Percent,
+    digitalRead(STATUS_LED_PIN) ? "CONNECTED" : "DISCONNECTED"
   );
-}
-
-void blinkStatusLED(int times) {
-  for (int i = 0; i < times; i++) {
-    digitalWrite(STATUS_LED_PIN, HIGH);
-    delay(200);
-    digitalWrite(STATUS_LED_PIN, LOW);
-    delay(200);
-  }
 }
 
 void reconnectMQTT() {
   while (!client.connected()) {
-    Serial.print("MQTT'ye bağlanıyor...");
+    Serial.print("📡 MQTT'ye bağlanıyor...");
+    
+    // MQTT bağlantısı sırasında mavi LED hızlı yanıp sönsün
+    for (int i = 0; i < 5; i++) {
+      digitalWrite(STATUS_LED_PIN, HIGH);
+      delay(100);
+      digitalWrite(STATUS_LED_PIN, LOW);
+      delay(100);
+    }
     
     if (client.connect("ESP32DualLEDController")) {
-      Serial.println("bağlandı!");
+      Serial.println("✅ MQTT bağlandı!");
+      
+      // MQTT bağlantısı başarılı - mavi LED sabit yak
+      digitalWrite(STATUS_LED_PIN, HIGH);
+      Serial.println("🔵 Mavi LED: MQTT bağlantısı başarılı");
       
       // Topic'lere abone ol
       client.subscribe("led1/control");
@@ -294,10 +315,15 @@ void reconnectMQTT() {
       // Bağlantı durumunu bildir
       client.publish("system/status", "ESP32 Dual LED Connected");
       sendSystemStatus(); // İlk durum bilgisi
-      blinkStatusLED(2); // Bağlantı sinyali
+      
+      Serial.println("📡 MQTT topic'lerine abone olundu");
       
     } else {
-      Serial.printf("başarısız, rc=%d 5 saniye sonra tekrar dene\n", client.state());
+      Serial.printf("❌ MQTT bağlantı hatası, rc=%d\n", client.state());
+      Serial.println("🔵 5 saniye sonra tekrar denenecek...");
+      
+      // Bağlantı hatası - mavi LED söndür
+      digitalWrite(STATUS_LED_PIN, LOW);
       delay(5000);
     }
   }

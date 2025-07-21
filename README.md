@@ -25,7 +25,7 @@ ESP/
 ## Kurulum
 1. ESP32 kodunu yükle
 2. Raspberry Pi'de MQTT broker kur
-3. Web dashboard'u çalıştır
+3. Web dashboard'u çalıştır-
 4. Sistem testini yap
 
 ## MQTT Topic'ler
