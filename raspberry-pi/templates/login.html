@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔐 ESP32 IoT - Giriş</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 400px;
+            position: relative;
+        }
+
+        .login-header {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            padding: 30px 20px;
+            text-align: center;
+        }
+
+        .login-header h1 {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .login-header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .login-form {
+            padding: 40px 30px;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #4CAF50;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(76, 175, 80, 0.3);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .alert {
+            margin-bottom: 20px;
+            padding: 12px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .alert-error {
+            background: #fee;
+            color: #c33;
+            border: 1px solid #fcc;
+        }
+
+        .alert-success {
+            background: #efe;
+            color: #3a3;
+            border: 1px solid #cfc;
+        }
+
+        .security-info {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .security-info h3 {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .security-info p {
+            color: #888;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .iot-status {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 15px;
+        }
+
+        .status-item {
+            text-align: center;
+        }
+
+        .status-icon {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .status-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                margin: 10px;
+            }
+            
+            .login-form {
+                padding: 30px 20px;
+            }
+        }
+
+        /* Animasyon */
+        .login-container {
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <h1>🌱 ESP32 IoT</h1>
+            <p>Akıllı Sulama Sistemi</p>
+        </div>
+
+        <div class="login-form">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'error' if category == 'error' else 'success' }}">
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form method="POST">
+                <div class="form-group">
+                    <label for="username">👤 Kullanıcı Adı</label>
+                    <input type="text" id="username" name="username" required 
+                           placeholder="Kullanıcı adınızı girin" autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">🔒 Şifre</label>
+                    <input type="password" id="password" name="password" required 
+                           placeholder="Şifrenizi girin" autocomplete="current-password">
+                </div>
+
+                <button type="submit" class="btn-login">
+                    🚀 GİRİŞ YAP
+                </button>
+            </form>
+
+            <div class="security-info">
+                <h3>🔐 Güvenli Erişim</h3>
+                <p>
+                    Bu panel ESP32 IoT cihazlarınızı kontrol etmek için tasarlanmıştır. 
+                    Güvenliğiniz için lütfen şifrenizi kimseyle paylaşmayın.
+                </p>
+                
+                <div class="iot-status">
+                    <div class="status-item">
+                        <div class="status-icon">📡</div>
+                        <div class="status-label">MQTT</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-icon">💡</div>
+                        <div class="status-label">LED</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-icon">🚰</div>
+                        <div class="status-label">Pump</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-icon">🌱</div>
+                        <div class="status-label">Sensors</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-focus username field
+        document.getElementById('username').focus();
+        
+        // Form validation
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                e.preventDefault();
+                alert('⚠️ Lütfen tüm alanları doldurun!');
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && (e.target.id === 'username' || e.target.id === 'password')) {
+                document.querySelector('form').submit();
+            }
+        });
+    </script>
+</body>
+</html> 

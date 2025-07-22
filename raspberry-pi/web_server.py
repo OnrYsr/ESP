@@ -2,15 +2,16 @@
 # -*- coding: utf-8 -*-
 """
 ESP32 Dual LED Kontrol Sistemi - Web Server
-Raspberry Pi MQTT Hub ve Web Dashboard + SQLite Database
+Raspberry Pi MQTT Hub ve Web Dashboard + SQLite Database + Authentication
 """
 
 import json
 import time
 import threading
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_cors import CORS
+from flask_login import LoginManager, login_user, logout_user, login_required, UserMixin, current_user
 import paho.mqtt.client as mqtt
 
 # Database import
@@ -22,6 +23,59 @@ from database import (
 # Flask app
 app = Flask(__name__)
 CORS(app)
+
+# Flask-Login configuration
+app.secret_key = 'esp32-iot-secure-key-2024!@#'  # Production'da environment variable kullanın
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message = 'Bu sayfaya erişmek için giriş yapmalısınız.'
+
+# User Model (Simple in-memory user)
+class User(UserMixin):
+    def __init__(self, id, username, password):
+        self.id = id
+        self.username = username
+        self.password = password
+
+# Hardcoded user (Production'da database'den alın)
+users = {
+    'admin': User('1', 'admin', 'esp32secure2024!'),  # Şifreyi değiştirin!
+}
+
+@login_manager.user_loader
+def load_user(user_id):
+    for username, user in users.items():
+        if user.id == user_id:
+            return user
+    return None
+
+# Authentication Routes
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        if username in users and users[username].password == password:
+            login_user(users[username])
+            log_system_event(f"Kullanıcı giriş yaptı: {username}", "INFO", "auth")
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('index'))
+        else:
+            flash('Geçersiz kullanıcı adı veya şifre!', 'error')
+            log_system_event(f"Başarısız giriş denemesi: {username}", "WARNING", "auth")
+    
+    return render_template('login.html')
+
+@app.route('/logout')
+@login_required
+def logout():
+    username = current_user.username
+    logout_user()
+    log_system_event(f"Kullanıcı çıkış yaptı: {username}", "INFO", "auth")
+    flash('Başarıyla çıkış yaptınız.', 'success')
+    return redirect(url_for('login'))
 
 # Global değişkenler
 system_data = {
@@ -192,16 +246,19 @@ def setup_mqtt():
 
 # Web Routes
 @app.route('/')
+@login_required
 def index():
     """Ana sayfa"""
     return render_template('index.html')
 
 @app.route('/api/status')
+@login_required
 def get_status():
     """Sistem durumu API"""
     return jsonify(system_data)
 
 @app.route('/api/led1/on', methods=['GET', 'POST'])
+@login_required
 def led1_on():
     """LED1 açma API"""
     try:
@@ -225,6 +282,7 @@ def led1_on():
         }), 500
 
 @app.route('/api/led1/off', methods=['GET', 'POST'])
+@login_required
 def led1_off():
     """LED1 kapatma API"""
     try:
@@ -248,6 +306,7 @@ def led1_off():
         }), 500
 
 @app.route('/api/led2/on', methods=['GET', 'POST'])
+@login_required
 def led2_on():
     """LED2 açma API"""
     try:
@@ -263,6 +322,7 @@ def led2_on():
         }), 500
 
 @app.route('/api/led2/off', methods=['GET', 'POST'])
+@login_required
 def led2_off():
     """LED2 kapatma API"""
     try:
@@ -278,6 +338,7 @@ def led2_off():
         }), 500
 
 @app.route('/api/all/on', methods=['GET', 'POST'])
+@login_required
 def all_leds_on():
     """Tüm LED'leri açma API"""
     try:
@@ -293,6 +354,7 @@ def all_leds_on():
         }), 500
 
 @app.route('/api/all/off', methods=['GET', 'POST'])
+@login_required
 def all_leds_off():
     """Tüm LED'leri kapatma API"""
     try:
@@ -308,6 +370,7 @@ def all_leds_off():
         }), 500
 
 @app.route('/api/pump/on', methods=['GET', 'POST'])
+@login_required
 def pump_on():
     """Su pompası açma API"""
     try:
@@ -331,6 +394,7 @@ def pump_on():
         }), 500
 
 @app.route('/api/pump/off', methods=['GET', 'POST'])
+@login_required
 def pump_off():
     """Su pompası kapatma API"""
     try:
@@ -346,6 +410,7 @@ def pump_off():
         }), 500
 
 @app.route('/api/restart', methods=['GET', 'POST'])
+@login_required
 def restart_esp32():
     """ESP32'yi yeniden başlat"""
     try:
@@ -361,6 +426,7 @@ def restart_esp32():
         }), 500
 
 @app.route('/api/test/led1')
+@login_required
 def test_led1():
     """Test için LED1'i 3 saniye yanıp söndür"""
     try:
@@ -386,6 +452,7 @@ def test_led1():
         }), 500
 
 @app.route('/api/test/led2')
+@login_required
 def test_led2():
     """Test için LED2'yi 3 saniye yanıp söndür"""
     try:
