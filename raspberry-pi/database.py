@@ -289,11 +289,169 @@ def get_recent_readings(device_id, limit=50):
     finally:
         conn.close()
 
+# ===========================================
+# USER MANAGEMENT FUNCTIONS
+# ===========================================
+
+from werkzeug.security import generate_password_hash, check_password_hash
+
+def create_user(username, password, email=None, role='user'):
+    """Yeni kullanıcı oluştur"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Şifreyi hashle
+        password_hash = generate_password_hash(password)
+        
+        cursor.execute('''
+            INSERT INTO users (username, email, password_hash, role)
+            VALUES (?, ?, ?, ?)
+        ''', (username, email, password_hash, role))
+        
+        user_id = cursor.lastrowid
+        conn.commit()
+        
+        log_system_event(f"Yeni kullanıcı oluşturuldu: {username}", "INFO", "user_management")
+        return user_id
+        
+    except sqlite3.IntegrityError:
+        print(f"❌ Kullanıcı adı zaten mevcut: {username}")
+        return None
+    except Exception as e:
+        print(f"❌ Kullanıcı oluşturma hatası: {e}")
+        return None
+    finally:
+        conn.close()
+
+def authenticate_user(username, password):
+    """Kullanıcı doğrulama"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT id, username, password_hash, role, email
+            FROM users 
+            WHERE username = ?
+        ''', (username,))
+        
+        user = cursor.fetchone()
+        
+        if user and check_password_hash(user['password_hash'], password):
+            # Son giriş zamanını güncelle
+            cursor.execute('''
+                UPDATE users 
+                SET last_login = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            ''', (user['id'],))
+            conn.commit()
+            
+            log_system_event(f"Kullanıcı giriş yaptı: {username}", "INFO", "auth")
+            return dict(user)
+        else:
+            log_system_event(f"Başarısız giriş denemesi: {username}", "WARNING", "auth")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Kimlik doğrulama hatası: {e}")
+        return None
+    finally:
+        conn.close()
+
+def get_user_by_id(user_id):
+    """ID ile kullanıcı getir"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT id, username, email, role, created_at, last_login
+            FROM users 
+            WHERE id = ?
+        ''', (user_id,))
+        
+        user = cursor.fetchone()
+        return dict(user) if user else None
+        
+    except Exception as e:
+        print(f"❌ Kullanıcı sorgu hatası: {e}")
+        return None
+    finally:
+        conn.close()
+
+def get_user_devices(user_id):
+    """Kullanıcının cihazlarını getir"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT id, device_name, device_type, esp32_pin, device_status, device_location
+            FROM devices 
+            WHERE user_id = ? AND device_status = 'active'
+            ORDER BY device_name
+        ''', (user_id,))
+        
+        devices = cursor.fetchall()
+        return [dict(row) for row in devices]
+        
+    except Exception as e:
+        print(f"❌ Kullanıcı cihazları sorgu hatası: {e}")
+        return []
+    finally:
+        conn.close()
+
+def create_default_admin():
+    """Varsayılan admin kullanıcısı oluştur"""
+    admin_exists = authenticate_user('admin', 'dummy_check')
+    
+    if not admin_exists:
+        admin_id = create_user(
+            username='admin',
+            password='esp32secure2024!',
+            email='admin@esp32-iot.local',
+            role='admin'
+        )
+        
+        if admin_id:
+            print("✅ Varsayılan admin kullanıcısı oluşturuldu")
+            print("👤 Kullanıcı: admin")
+            print("🔒 Şifre: esp32secure2024!")
+            return admin_id
+    else:
+        print("ℹ️  Admin kullanıcısı zaten mevcut")
+        return None
+
+def get_all_users():
+    """Tüm kullanıcıları listele (admin için)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('''
+            SELECT id, username, email, role, created_at, last_login
+            FROM users 
+            ORDER BY created_at DESC
+        ''')
+        
+        users = cursor.fetchall()
+        return [dict(row) for row in users]
+        
+    except Exception as e:
+        print(f"❌ Kullanıcı listesi sorgu hatası: {e}")
+        return []
+    finally:
+        conn.close()
+
 if __name__ == '__main__':
     # Test için veritabanını oluştur
     print("🗄️ SQLite veritabanı oluşturuluyor...")
     init_database()
     print("✅ Veritabanı hazır!")
+    
+    # Varsayılan admin kullanıcısını oluştur
+    create_default_admin()
     
     # Test verileri
     log_system_event("Database sistem başlatıldı", "INFO", "database")

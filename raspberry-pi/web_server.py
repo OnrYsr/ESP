@@ -17,7 +17,8 @@ import paho.mqtt.client as mqtt
 # Database import
 from database import (
     init_database, log_system_event, save_device_reading, 
-    save_device_action, get_device_by_pin, get_recent_readings
+    save_device_action, get_device_by_pin, get_recent_readings,
+    authenticate_user, get_user_by_id, create_default_admin
 )
 
 # Flask app
@@ -31,23 +32,24 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Bu sayfaya erişmek için giriş yapmalısınız.'
 
-# User Model (Simple in-memory user)
+# User Model (Database-based)
 class User(UserMixin):
-    def __init__(self, id, username, password):
-        self.id = id
+    def __init__(self, id, username, role, email=None):
+        self.id = str(id)
         self.username = username
-        self.password = password
-
-# Hardcoded user (Production'da database'den alın)
-users = {
-    'admin': User('1', 'admin', 'esp32secure2024!'),  # Şifreyi değiştirin!
-}
+        self.role = role
+        self.email = email
 
 @login_manager.user_loader
 def load_user(user_id):
-    for username, user in users.items():
-        if user.id == user_id:
-            return user
+    user_data = get_user_by_id(int(user_id))
+    if user_data:
+        return User(
+            id=user_data['id'],
+            username=user_data['username'],
+            role=user_data['role'],
+            email=user_data['email']
+        )
     return None
 
 # Authentication Routes
@@ -57,14 +59,21 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        if username in users and users[username].password == password:
-            login_user(users[username])
-            log_system_event(f"Kullanıcı giriş yaptı: {username}", "INFO", "auth")
+        # Database'den kullanıcı doğrulama
+        user_data = authenticate_user(username, password)
+        
+        if user_data:
+            user = User(
+                id=user_data['id'],
+                username=user_data['username'],
+                role=user_data['role'],
+                email=user_data['email']
+            )
+            login_user(user)
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('index'))
         else:
             flash('Geçersiz kullanıcı adı veya şifre!', 'error')
-            log_system_event(f"Başarısız giriş denemesi: {username}", "WARNING", "auth")
     
     return render_template('login.html')
 
@@ -485,6 +494,8 @@ if __name__ == '__main__':
     print("🗄️ SQLite Database başlatılıyor...")
     try:
         init_database()
+        # Varsayılan admin kullanıcısını oluştur
+        create_default_admin()
         log_system_event("Web server başlatıldı", "INFO", "web_server")
         print("✅ Database hazır!")
     except Exception as e:
